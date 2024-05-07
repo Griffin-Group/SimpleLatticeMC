@@ -58,9 +58,13 @@ def write_unitcell(a0, d, vdw, vac, outputfile, supercell, occstring, interc):
     with open(outputfile, 'w') as f: f.write(''.join(lines))
 
     # prints the adjacency information (how many interactions of each length etc)
-    print('Working on {}'.format(sys.argv[5]))
+    #print('Working on {}'.format(sys.argv[5]))
     a1 = np.array([a0, 0.0])
     a2 = np.array([-a0/2, np.sqrt(3)*a0/2])
+    a0 = a0/supercell
+    #print('Calling supercell code with a0={}'.format(a0))
+    #print('a1={}, a2={}'.format(a1, a2))
+    #print('basis_vecs={}'.format(basis_vecs))
     auto_generate_adjacency(a1, a2, basis_vecs, a0)
                            
 if __name__ == '__main__':

@@ -36,8 +36,8 @@ make_subdir () {
 #make_subdir 1 '0'
 #make_subdir 1 '1'
 make_subdir 2 '1000'
-#make_subdir 2 '1001'
-#make_subdir 2 '1100'
-#make_subdir 2 '1110'
+make_subdir 2 '1001'
+make_subdir 2 '1100'
+make_subdir 2 '1110'
 #make_subdir 3 '100000000'
 
