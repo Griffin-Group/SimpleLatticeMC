@@ -20,7 +20,6 @@ different supercells.
 TBDSCRIPT.
 
 5. Run the lattice model, use the extracted parameters
-in the input.txt file in the montecarlo directory.
-Modify MC parameters as needed and submit the provided
-job script to run.
+in the mc.jl file in the montecarlo directory.
+Modify MC parameters as needed.
 
