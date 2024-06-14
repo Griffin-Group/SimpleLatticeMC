@@ -21,6 +21,20 @@ function printLattice(N_IP::Int64, occupation::SparseVector{Int8, Int64}, iostre
 	write(iostream, "\n")
 end
 
+function printLatticeIndexDebug(N_IP::Int64, occupation::SparseVector{Int8, Int64}, iostream::IOStream)
+	pad = "";
+	for n in 0:N_IP-1
+		for m in 0:N_IP-1
+			index1 =  n*N_IP + m + 1;
+			str = @sprintf("%4.0f%4.0f", n, m);
+			write(iostream, str)
+		end 
+		pad = pad * " ";
+		write(iostream, "\n", pad)
+	end
+	write(iostream, "\n")
+end
+
 function printOP3(N_IP::Int64, occupation::SparseVector{Int8, Int64}, iostream::IOStream)
 	pad = "";
 	for n in 0:N_IP-1
@@ -149,7 +163,64 @@ function printham(N_IP::Int64, J1::Float64, J2::Float64, Jr3::Float64, ham::Spar
 	end 
 end
 
-function op3(N_IP::Int64, occupation::SparseVector{Int8, Int64})
+# short range order parameter
+function srop(x::Float64, N_IP::Int64, occupation::SparseVector{Int8, Int64})
+
+	alpha::Float64 = 0;
+	Nalpha::Int64 = 0;
+	number_neighbors::Int64 = 0;
+	maxval::Int64 = N_IP-1;
+
+	oneless_n::Int64 = 0;
+	oneless_m::Int64 = 0;
+	onemore_n::Int64 = 0;
+	onemore_m::Int64 = 0;
+
+	for n in 0:N_IP-1
+		for m in 0:N_IP-1
+			index =  n*N_IP + m;
+			if occupation[index+1] == 1
+				if n == 0 
+					oneless_n = maxval;
+				else 
+					oneless_n = n - 1;
+				end 
+				if m == 0 
+					oneless_m = maxval;
+				else 
+					oneless_m = m - 1;
+				end 
+				if n == maxval
+					onemore_n = 0;
+				else 
+					onemore_n = n + 1;
+				end 
+				if m == maxval
+					onemore_m = 0;
+				else 
+					onemore_m = m + 1;
+				end 
+
+				# number_neighbors debugged! checked.
+
+				number_neighbors = 0;
+				number_neighbors += occupation[((onemore_n)*N_IP + m)+1];
+				number_neighbors += occupation[((oneless_n)*N_IP + m)+1];
+				number_neighbors += occupation[(n*N_IP + oneless_m)+1];
+				number_neighbors += occupation[(n*N_IP + onemore_m)+1];
+				number_neighbors += occupation[((oneless_n)*N_IP + onemore_m)+1];
+				number_neighbors += occupation[((onemore_n)*N_IP + oneless_m)+1];
+
+				alpha += 1 - (6-number_neighbors)/(6*(1-x));
+				Nalpha += 1;
+				
+			end
+		end 
+	end
+	return alpha/Nalpha; # average alpha
+end
+
+function op3_old(N_IP::Int64, occupation::SparseVector{Int8, Int64})
 	sl_occ::Vector{Int64} = [0,0,0]; # 3 different 2x2 sublattices
 	index1::Int64 = 0;
 	for n in 0:N_IP-1
@@ -168,7 +239,29 @@ function op3(N_IP::Int64, occupation::SparseVector{Int8, Int64})
 	return (maximum(sl_occ) - minimum(sl_occ))/(N_IP*N_IP)*3
 end
 
-function op2(N_IP::Int64, occupation::SparseVector{Int8, Int64})
+function op3(N_IP::Int64, occupation::SparseVector{Int8, Int64})
+	sl_occ::Vector{Int64} = [0,0,0]; # 3 different 2x2 sublattices
+	index1::Int64 = 0;
+	for n in 0:N_IP-1
+		for m in 0:N_IP-1
+			index1 =  n*N_IP + m;
+			if (n%3 == 0 && m%3 == 0) || (n%3 == 1 && m%3 == 1) || (n%3 == 2 && m%3 == 2) 
+				sl_occ[1] += occupation[index1+1];
+			elseif (n%3 == 0 && m%3 == 1) || (n%3 == 1 && m%3 == 2) || (n%3 == 2 && m%3 == 0) 
+				sl_occ[2] += occupation[index1+1];
+			elseif (n%3 == 0 && m%3 == 2) || (n%3 == 1 && m%3 == 0) || (n%3 == 2 && m%3 == 1) 
+				sl_occ[3] += occupation[index1+1];
+			end
+		end 
+	end
+	Nomega::Float64 = (N_IP*N_IP)/3
+	phi1::Float64 = (2*sl_occ[1]-sl_occ[2]-sl_occ[3])/(4*Nomega);
+	phi2::Float64 = (2*sl_occ[2]-sl_occ[1]-sl_occ[3])/(4*Nomega);
+	phi3::Float64 = (2*sl_occ[3]-sl_occ[2]-sl_occ[1])/(4*Nomega);
+	return sqrt(phi1*phi1 + phi2*phi2 + phi3*phi3);
+end
+
+function op2_old(N_IP::Int64, occupation::SparseVector{Int8, Int64})
 	sl_occ::Vector{Int64} = [0,0,0,0]; # 4 different 2x2 sublattices
 	index1::Int64 = 0;
 	for n in 0:N_IP-1
@@ -187,6 +280,31 @@ function op2(N_IP::Int64, occupation::SparseVector{Int8, Int64})
 	end
 	#print(sl_occ)
 	return (maximum(sl_occ) - minimum(sl_occ))/(N_IP*N_IP)*4
+end 
+
+function op2(N_IP::Int64, occupation::SparseVector{Int8, Int64})
+	sl_occ::Vector{Int64} = [0,0,0,0]; # 4 different 2x2 sublattices
+	index1::Int64 = 0;
+	for n in 0:N_IP-1
+		for m in 0:N_IP-1
+			index1 =  n*N_IP + m;
+			if n%2 == 0 && m%2 == 0
+				sl_occ[1] += occupation[index1+1];
+			elseif n%2 == 0 && m%2 == 1
+				sl_occ[2] += occupation[index1+1];
+			elseif n%2 == 1 && m%2 == 0
+				sl_occ[3] += occupation[index1+1];
+			elseif n%2 == 1 && m%2 == 1
+				sl_occ[4] += occupation[index1+1];
+			end
+		end 
+	end
+	Nomega::Float64 = (N_IP*N_IP)/4
+	phi1::Float64 = (3*sl_occ[1]-sl_occ[2]-sl_occ[3]-sl_occ[4])/(6*Nomega);
+	phi2::Float64 = (3*sl_occ[2]-sl_occ[1]-sl_occ[3]-sl_occ[4])/(6*Nomega);
+	phi3::Float64 = (3*sl_occ[3]-sl_occ[2]-sl_occ[1]-sl_occ[4])/(6*Nomega);
+	phi4::Float64 = (3*sl_occ[4]-sl_occ[2]-sl_occ[3]-sl_occ[1])/(6*Nomega);
+	return sqrt(phi1*phi1 + phi2*phi2 + phi3*phi3 + phi4*phi4);
 end 
 
 function mcmain( J1::Float64, J2::Float64, Jr3::Float64, N_IP::Int64, kbT::Float64, x::Float64, sweeps::Int64, warmup_sweeps::Int64, iostream::IOStream, sumpath::String, uselog::Bool)
@@ -210,7 +328,7 @@ function mcmain( J1::Float64, J2::Float64, Jr3::Float64, N_IP::Int64, kbT::Float
 	hsigma::SparseVector{Float64, Int64} = coupling * occupation;
 	energy::Float64 = occupation' * hsigma;
 
-	# allocations - trying to reuse as much as possible 
+	# allocations
 	N_accept::Int64   = 0;
 	N_reject::Int64   = 0;
 	N_fail::Int64     = 0;
@@ -312,9 +430,10 @@ function mcmain( J1::Float64, J2::Float64, Jr3::Float64, N_IP::Int64, kbT::Float
 	# allocations, rest resued from warmup loop
 	op2_x::Vector{Float64}   = zeros( trunc(Int64, sweeps ÷ 5) + 1 ); 
 	op3_x::Vector{Float64}   = zeros( trunc(Int64, sweeps ÷ 5) + 1 );
+	srop_x::Vector{Float64}  = zeros( trunc(Int64, sweeps ÷ 5) + 1 );
 
 	printLattice(N_IP, occupation, iostream)
-	println(iostream, "##############################################################################")
+	println(iostream, "############################### SNAPSHOTS ####################################")
 
 	for sweep in 0:sweeps 
 
@@ -383,15 +502,23 @@ function mcmain( J1::Float64, J2::Float64, Jr3::Float64, N_IP::Int64, kbT::Float
 			op2_x[ 1 + trunc(Int64, sweep ÷ 5) ]  = op2(N_IP, occupation);
 			#print(op2(N_IP, occupation), "   ", 1 + trunc(Int64, sweep ÷ 5), "\n");
 			op3_x[ 1 + trunc(Int64, sweep ÷ 5) ]  = op3(N_IP, occupation);
+			srop_x[ 1 + trunc(Int64, sweep ÷ 5) ] = srop(x, N_IP, occupation);
 		end
 
 		if sweep % (sweeps/20) == 0
 			i = trunc(Int64, sweep ÷ (sweeps/20));
-			println(iostream, " --> <OP2> ", round(mean(op2_x), digits=4), " <OP3> ", round(mean(op3_x), digits=4), " at snapshot ", i, "/20")
+			println(iostream, " OP2 ",     op2(N_IP, occupation), 
+				 			  " OP3 ",     op3(N_IP, occupation),
+				 			  " SROP ",    srop(x, N_IP, occupation), 
+				 			  " at snapshot ", i, "/20")
 		end 
 
 	end 
 
+	println(iostream, "################################## TRACES ####################################")
+	println(iostream, " --> OP2 ", op2_x)
+	println(iostream, " --> OP3 ", op3_x)
+	println(iostream, " --> SROP ", srop_x)
 	println(iostream, "##############################################################################")
 	printLattice(N_IP, occupation, iostream)
 	println(iostream, "3x3 OP: \n")
@@ -403,10 +530,16 @@ function mcmain( J1::Float64, J2::Float64, Jr3::Float64, N_IP::Int64, kbT::Float
 	s2op2::Float64 = mean((op2_x .- mop2).^2);
 	s4op2::Float64 = mean((op2_x .- mop2).^4);
 	bop2::Float64  = 1 - (s4op2/(3*s2op2*s2op2));
+
 	mop3::Float64  = mean(op3_x);
 	s2op3::Float64 = mean((op3_x .- mop3).^2);
 	s4op3::Float64 = mean((op3_x .- mop3).^4);
 	bop3::Float64  = 1 - (s4op3/(3*s2op3*s2op3));
+
+	msrop::Float64  = mean(srop_x);
+	s2srop::Float64 = mean((srop_x .- msrop).^2);
+	s4srop::Float64 = mean((srop_x .- msrop).^4);
+	bsrop::Float64  = 1 - (s4srop/(3*s2srop*s2srop));
 
 	println(iostream, "##############################################################################")
 	println(iostream, "after ", warmup_sweeps, " sweeps ", warmup_sweeps*N_IP*N_IP, " steps")
@@ -416,6 +549,9 @@ function mcmain( J1::Float64, J2::Float64, Jr3::Float64, N_IP::Int64, kbT::Float
 	println(iostream, " <OP3> ", mop3)
 	println(iostream, " Variance OP3 ", s2op3 )
 	println(iostream, " Binder Cum of OP3 ", bop3)
+	println(iostream, " <SROP> ", mop3)
+	println(iostream, " Variance SROP ", s2op3 )
+	println(iostream, " Binder Cum of SROP ", bop3)
 	println(iostream, "percent accepted ", 100*N_accept/(N_accept+N_reject+N_fail))
 	println(iostream, "percent rejected ", 100*N_reject/(N_accept+N_reject+N_fail))
 	println(iostream, "percent failed to hop ", 100*N_fail/(N_accept+N_reject+N_fail))
@@ -423,11 +559,11 @@ function mcmain( J1::Float64, J2::Float64, Jr3::Float64, N_IP::Int64, kbT::Float
 
 	if uselog
 		sumio = open(sumpath, "a") 
-		str = @sprintf("%4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f", x, kbT, mop2, s2op2, bop2, mop3, s2op3, bop3);
+		str = @sprintf("%4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f ", x, kbT, mop2, s2op2, bop2, mop3, s2op3, bop3, msrop, s2srop, bsrop);
 		println(sumio, str)
 		close(sumio);
 	else 
-		str = @sprintf("%4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \n", x, kbT, mop2, s2op2, bop2, mop3, s2op3, bop3);
+		str = @sprintf("%4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \t %4.5f \n", x, kbT, mop2, s2op2, bop2, mop3, s2op3, bop3, msrop, s2srop, bsrop);
 		print(str)
 	end 
 end
@@ -439,25 +575,92 @@ function serial_main_ZnBL()
 	J2::Float64 = 5.9;
 	Jr3::Float64  = 19.1;
 	N_IP::Int64  = 18; # in plane dimension, 6 makes a 6x6 2d lattice
-	sweeps::Int64 = 1e2;# 5e4;
-	warmup_sweeps::Int64 = 1e2; 
+	sweeps::Int64 = 1e3; #5e4;
+	warmup_sweeps::Int64 = 1e3; #5e4; 
 
-	savedir::String = @sprintf("ZnBL_testspeed");
+	savedir::String = @sprintf("results/ZnBL_18x18_1e3_withLocal");
 	#savedir::String = @sprintf("ZnBL_%4.1f", N_IP*N_IP);
 	mkpath( savedir );
 	sumpath::String = savedir * "/" * "mc_summary.txt";
 	sumio::IOStream = open(sumpath, "a");
-	println(sumio, "x \t\t kbt \t\t <op2> \t\t var(op2) \t binder(op2) \t\t <op3> \t\t var(op3) \t binder(op3) ");
+	#println(sumio, "x \t\t kbt \t\t <op2> \t\t var(op2) \t binder(op2) \t\t <op3> \t\t var(op3) \t binder(op3) ");
+	println(sumio, "x \t\t kbt \t\t <op2> \t\t var(op2) \t binder(op2) \t\t <op3> \t\t var(op3) \t binder(op3) \t\t <srop> \t\t var(srop) \t binder(srop) ");
 	close(sumio);
+	
+	xs::Vector{Float64} = [ 0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 
+							0.20, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27, 0.28, 0.29,
+							0.30, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38, 0.39, 
+							0.40 ] #, 0.41, 0.42, 0.43, 0.44, 0.45, 0.46, 0.47, 0.48, 0.49, 0.50]
 
-	xs::Vector{Float64} = [0.10];
-	# 0.41, 0.42, 0.43, 0.44, 0.45, 0.46, 0.47, 0.48, 0.49, 0.50, 0.20, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27, 
-	# 0.28, 0.29, 0.30, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38, 0.39, 0.40, 0.10, 0.11, 0.12, 0.13, 
-	# 0.14, 0.15, 0.16, 0.17, 0.18, 0.19,
+	kbTs::Vector{Float64} = [30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115,120,125,
+							130,135,140,145,150,155,160,165,170]
 
-	kbTs::Vector{Float64} = [25];
-	# 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 
-	# 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65
+	for x in xs
+		for kbT in kbTs
+			path::String = savedir * "/" * @sprintf("mc_x_%5.3f_kbT_%5.3f.txt", x, kbT)
+			print("Will be saving to ", path, "\n")
+			ios::IOStream = open(path, "a");
+			mcmain(J1, J2, Jr3, N_IP, kbT, x, sweeps, warmup_sweeps, ios, sumpath, true)
+			close(ios);
+		end
+	end
+end
+
+function test()
+
+	# Zn bilayer
+	J1::Float64 = 205.8; # all coupling in meV
+	J2::Float64 = 5.9;
+	Jr3::Float64  = 19.1;
+	N_IP::Int64  = 3; # in plane dimension, 6 makes a 6x6 2d lattice
+	sweeps::Int64 = 25; #5e4;
+	warmup_sweeps::Int64 = 1e3; #5e4; 
+
+	savedir::String = @sprintf("results/test");
+	mkpath( savedir );
+	sumpath::String = savedir * "/" * "mc_summary.txt";
+	sumio::IOStream = open(sumpath, "a");
+	println(sumio, "x \t\t kbt \t\t <op2> \t\t var(op2) \t binder(op2) \t\t <op3> \t\t var(op3) \t binder(op3) \t\t <srop> \t\t var(srop) \t binder(srop) ");
+	close(sumio);
+	xs::Vector{Float64} = [ 0.5 ] #, 0.40]
+	kbTs::Vector{Float64} = [30]
+	for x in xs
+		for kbT in kbTs
+			path::String = savedir * "/" * @sprintf("mc_x_%5.3f_kbT_%5.3f.txt", x, kbT)
+			print("Will be saving to ", path, "\n")
+			ios::IOStream = open(path, "a");
+			mcmain(J1, J2, Jr3, N_IP, kbT, x, sweeps, warmup_sweeps, ios, sumpath, true)
+			close(ios);
+		end
+	end
+end
+
+function serial_main_ScBL()
+
+	# Sc bilayer
+	J1::Float64 = 281.0; # all coupling in meV
+	J2::Float64 = 6.0;
+	Jr3::Float64  = 19.1;
+	N_IP::Int64  = 18; # in plane dimension, 6 makes a 6x6 2d lattice
+	sweeps::Int64 = 1e3;
+	warmup_sweeps::Int64 = 1e3; 
+
+	savedir::String = @sprintf("results/ScBL_18x18_1e3_withLocal");
+	#savedir::String = @sprintf("ZnBL_%4.1f", N_IP*N_IP);
+	mkpath( savedir );
+	sumpath::String = savedir * "/" * "mc_summary.txt";
+	sumio::IOStream = open(sumpath, "a");
+	#println(sumio, "x \t\t kbt \t\t <op2> \t\t var(op2) \t binder(op2) \t\t <op3> \t\t var(op3) \t binder(op3) ");
+	println(sumio, "x \t\t kbt \t\t <op2> \t\t var(op2) \t binder(op2) \t\t <op3> \t\t var(op3) \t binder(op3) \t\t <srop> \t\t var(srop) \t binder(srop) ");
+	close(sumio);
+	
+	xs::Vector{Float64} = [ 0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 
+							0.20, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27, 0.28, 0.29,
+							0.30, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38, 0.39, 
+							0.40];
+
+	kbTs::Vector{Float64} = [30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115,120,125,
+							130,135,140,145,150,155,160,165,170];
 
 	for x in xs
 		for kbT in kbTs
@@ -476,12 +679,12 @@ function multithread_main_ZnBL()
 	J1::Float64 = 205.8; # all coupling in meV
 	J2::Float64 = 5.9;
 	Jr3::Float64  = 19.1;
-	N_IP::Int64  = 12; # in plane dimension, 6 makes a 6x6 2d lattice
-	sweeps::Int64 = 5e4;
-	warmup_sweeps::Int64 = 5e4; 
+	N_IP::Int64  = 6; # in plane dimension, 6 makes a 6x6 2d lattice
+	sweeps::Int64 = 1e2;# 5e4;
+	warmup_sweeps::Int64 = 1e2;# 5e4; 
 
-	#savedir::String = @sprintf("ZnBL_testspeed");
-	savedir::String = @sprintf("ZnBL_%4.1f", N_IP*N_IP);
+	savedir::String = @sprintf("ZnBL_testspeed");
+	#savedir::String = @sprintf("ZnBL_%4.1f", N_IP*N_IP);
 	mkpath( savedir );
 	print("Will be using ", Threads.nthreads(), " thread \n")
 	print("x \t\t kbt \t\t <op2> \t\t var(op2) \t binder(op2) \t <op3> \t\t var(op3) \t binder(op3) \n");	
@@ -491,10 +694,10 @@ function multithread_main_ZnBL()
 							0.30, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38, 0.39, 
 							0.40, 0.41, 0.42, 0.43, 0.44, 0.45, 0.46, 0.47, 0.48, 0.49, 0.50]
 
-	kbTs::Vector{Float64} = [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 
-												 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 
-												 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 
-												 60, 61, 62, 63, 64, 65];
+	kbTs::Vector{Float64} = [25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63, 65, 67, 
+		69, 71, 73, 75, 77, 79, 81, 83, 85, 87, 89, 91, 93, 95, 97, 99, 101, 103, 105, 107, 109, 111, 113, 115, 117, 
+		119, 121, 123, 125, 127, 129, 131, 133, 135, 137, 139, 141, 143, 145, 147, 149, 151, 153, 155, 157, 159, 161, 
+		163, 165, 167, 169, 171, 173]
 
 	Threads.@threads for x in xs
 		for kbT in kbTs
@@ -509,7 +712,7 @@ end
 
 function multithread_main_ScBL()
 
-	# Zn bilayer
+	# Sc bilayer
 	J1::Float64 = 281.0; # all coupling in meV
 	J2::Float64 = 6.0;
 	Jr3::Float64  = 19.1;
@@ -544,6 +747,8 @@ function multithread_main_ScBL()
 	end
 end
 
-@time multithread_main_ScBL();
-#@time serial_main_ZnBL();
+#serial_main_ZnBL@time multithread_main_ZnBL();
+@time serial_main_ScBL();
+#test();
+@time serial_main_ZnBL();
 
