@@ -16,8 +16,7 @@ different supercells.
 
 3. Run these jobs to get energies, dos, etc.
 
-4. Parse and fit the energies to a lattice model with
-TBDSCRIPT.
+4. Parse and fit the energies to a lattice model.
 
 5. Run the lattice model, use the extracted parameters
 in the mc.jl file in the montecarlo directory.
